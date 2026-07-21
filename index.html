@@ -83,6 +83,7 @@ function buildRealm(A,AL,S){
     al.songs.push({id:s.id,n:s.n,title:s.title,dur:s.dur,genre:s.genre,
       accent:s.accent,g1:s.g1,g2:s.g2,tags:(s.tags||"").split("|").filter(Boolean),
       desc:s.desc,audioSrc:s.audio||null,
+      cover:s.cover?img(s.cover):al.cover,
       story:{title:s.story_title||s.title,
         paragraphs:(s.story_paragraphs||"").split("||").map(p=>p.trim()).filter(Boolean),
         quote:s.story_quote||""}});});
@@ -220,6 +221,8 @@ const DEMO_REALM=[
      ]},
    ]},
 ];
+// demo songs inherit their album cover when no per-song cover exists
+DEMO_REALM.forEach(a=>a.albums.forEach(al=>al.songs.forEach(s=>{if(!s.cover)s.cover=al.cover;})));
 
 // ═══ RESPONSIVE ═══
 function useIsMobile(){
@@ -283,23 +286,31 @@ function OutlineText({children,size=40,color=WHITE,outline=BLACK,skew=-8,style})
       letterSpacing:-1,...style}}>{children}</div>
   );
 }
-// Ransom-note lettering (P5 name plates)
+// Ransom-note lettering (name plates) — wraps per WORD, never mid-word
 function RansomText({text,accent,size=40}){
   const styles=[{bg:WHITE,fg:BLACK},{bg:BLACK,fg:WHITE},{bg:accent,fg:WHITE}];
+  let gi=0; // global letter index across whole string (keeps color/rotation pattern)
   return (
-    <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"flex-end"}}>
-      {text.split("").map((ch,i)=>{
-        if(ch===" ")return <div key={i} style={{width:size*.35}}/>;
-        const st=styles[(i*7+3)%3];
-        const rot=((i*37)%11)-5;
+    <div style={{display:"flex",flexWrap:"wrap",columnGap:size*.4,rowGap:8,alignItems:"flex-end"}}>
+      {text.split(/\s+/).filter(Boolean).map((word,wi)=>{
+        const start=gi; gi+=word.length+1;
         return (
-          <span key={i} style={{"--rr":`${rot}deg`,
-            background:st.bg,color:st.fg,
-            fontSize:size+((i*13)%3)*3,fontWeight:900,fontStyle:"italic",
-            textTransform:"uppercase",padding:`0 ${size*.14}px`,
-            transform:`rotate(${rot}deg)`,display:"inline-block",
-            boxShadow:`3px 3px 0 ${st.bg===BLACK?accent:BLACK}`,lineHeight:1.15,
-            animation:`ransomPop .4s ${i*.04}s both cubic-bezier(.3,1.6,.5,1)`}}>{ch}</span>
+          <div key={wi} style={{display:"flex",gap:5,alignItems:"flex-end",flexWrap:"nowrap"}}>
+            {word.split("").map((ch,ci)=>{
+              const i=start+ci;
+              const st=styles[(i*7+3)%3];
+              const rot=((i*37)%11)-5;
+              return (
+                <span key={ci} style={{"--rr":`${rot}deg`,
+                  background:st.bg,color:st.fg,
+                  fontSize:size+((i*13)%3)*3,fontWeight:900,fontStyle:"italic",
+                  textTransform:"uppercase",padding:`0 ${size*.14}px`,
+                  transform:`rotate(${rot}deg)`,display:"inline-block",
+                  boxShadow:`3px 3px 0 ${st.bg===BLACK?accent:BLACK}`,lineHeight:1.15,
+                  animation:`ransomPop .4s ${i*.04}s both cubic-bezier(.3,1.6,.5,1)`}}>{ch}</span>
+              );
+            })}
+          </div>
         );
       })}
     </div>
@@ -506,8 +517,9 @@ function ArtistSelect({artists,onSelect,onBack}){
   },[cur,artist]);
 
   const List=(
-    <div style={{display:"flex",flexDirection:"column",gap:isMobile?6:9,
-      padding:isMobile?"0 14px":"0", width:isMobile?"100%":300, flexShrink:0}}>
+    <div style={{display:"flex",flexDirection:"column",gap:isMobile?6:10,
+      padding:isMobile?"0 14px":"0", width:isMobile?"100%":"clamp(340px, 30vw, 470px)", flexShrink:0,
+      position:"relative",zIndex:12}}>
       {/* menu header */}
       <div style={{alignSelf:"flex-start",transform:"rotate(-2deg)",
         animation:"slashIn .4s cubic-bezier(.3,1.4,.5,1)",marginBottom:4}}>
@@ -528,17 +540,20 @@ function ArtistSelect({artists,onSelect,onBack}){
               background:isC?a.accent:WHITE,
               border:`3px solid ${BLACK}`,
               boxShadow:isC?`6px 6px 0 ${BLACK}, 0 0 26px ${a.accent}55`:`3px 3px 0 rgba(0,0,0,.7)`,
-              padding:isC?"12px 18px":"8px 18px",
+              padding:isC?(isMobile?"12px 18px":"16px 22px"):(isMobile?"8px 18px":"12px 22px"),
               marginLeft:i*(isMobile?2:6),
               cursor:"pointer",transition:"all .2s cubic-bezier(.3,1.5,.5,1)",
               animation:`barIn .4s ${.08+i*.08}s both cubic-bezier(.3,1.4,.5,1)`}}>
             <div style={{transform:"skewX(8deg)",display:"flex",alignItems:"center",gap:12}}>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:7,fontWeight:900,fontStyle:"italic",letterSpacing:1.5,
+                <div style={{fontSize:isMobile?7:8,fontWeight:900,fontStyle:"italic",letterSpacing:1.5,
                   color:isC?WHITE:BLACK,opacity:isC?.9:.45,textTransform:"uppercase"}}>{a.role}</div>
-                <div style={{fontSize:isC?18:14,fontWeight:900,fontStyle:"italic",
+                <div style={{fontSize:isC?(isMobile?18:23):(isMobile?14:17),fontWeight:900,fontStyle:"italic",
                   color:isC?WHITE:BLACK,textTransform:"uppercase",letterSpacing:.5,
                   textShadow:isC?`2px 2px 0 ${BLACK}`:"none"}}>{a.name}</div>
+                {isC&&!isMobile&&<div style={{fontSize:8.5,fontStyle:"italic",color:WHITE,opacity:.85,
+                  fontFamily:"Georgia,serif",fontWeight:400,marginTop:3,
+                  whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.tagline}</div>}
               </div>
               <div style={{background:isC?BLACK:BLACK,color:WHITE,
                 fontSize:7.5,fontWeight:900,fontStyle:"italic",letterSpacing:1,
@@ -569,8 +584,8 @@ function ArtistSelect({artists,onSelect,onBack}){
         animation:"slamDown .6s cubic-bezier(.4,1.5,.55,1) both",
         ...(isMobile
           ? {marginTop:-8,marginBottom:-24}
-          : {position:"absolute",right:-18,top:"50%",transform:"translateY(-50%)",
-             height:"116%",width:"auto",maxWidth:"56%"})}}>
+          : {position:"absolute",right:-24,top:"50%",transform:"translateY(-50%)",
+             height:"128%",width:"auto",maxWidth:"78%"})}}>
         {/* accent screen backing (offset shard) — shakes on impact */}
         <div style={{position:"absolute",inset:-10,background:artist.accent,clipPath:JAG2,
           transform:"rotate(2.5deg)",
@@ -605,9 +620,9 @@ function ArtistSelect({artists,onSelect,onBack}){
 
       {/* name + description block — sits in FRONT of the oversized portrait */}
       <div style={{position:"relative",zIndex:6,
-        marginTop:isMobile?-40:30,
-        width:isMobile?"100%":"52%",maxWidth:isMobile?"100%":400}}>
-        <RansomText text={artist.name} accent={artist.accent} size={isMobile?26:36}/>
+        marginTop:isMobile?-40:24,
+        width:isMobile?"100%":"66%",maxWidth:isMobile?"100%":540}}>
+        <RansomText text={artist.name} accent={artist.accent} size={isMobile?26:40}/>
         <div style={{marginTop:10,display:"inline-block",background:BLACK,
           padding:"3px 12px",transform:"rotate(-1.5deg)",
           boxShadow:`3px 3px 0 ${artist.accent}`}}>
@@ -783,6 +798,22 @@ function AlbumSelect({artist,onSelect,onBack}){
     <div style={{height:"100%",background:BLACK,position:"relative",overflow:"hidden",userSelect:"none"}}>
       <Stripes color={`${album.accent}0d`}/><Halftone/>
       <BackBtn onClick={onBack} label="Artists"/>
+      {/* artist cameo — cropped B&W backdrop, angled */}
+      <div style={{position:"absolute",top:0,right:isMobile?"-18%":"-2%",
+        width:isMobile?"85%":"48%",height:"100%",zIndex:0,pointerEvents:"none",
+        clipPath:"polygon(22% 0, 100% 0, 100% 100%, 0 100%)",overflow:"hidden"}}>
+        <img src={artist.image} alt=""
+          style={{width:"100%",height:"110%",objectFit:"cover",objectPosition:"top",
+            transform:"rotate(2deg) scale(1.08)",
+            filter:"grayscale(1) contrast(1.4) brightness(.6)",opacity:.38}}/>
+        <div style={{position:"absolute",inset:0,
+          background:`linear-gradient(to left, transparent 0%, ${BLACK} 92%)`}}/>
+        <div style={{position:"absolute",inset:0,
+          background:`linear-gradient(to top, ${BLACK} 4%, transparent 45%)`}}/>
+        <div style={{position:"absolute",inset:0,opacity:.35,
+          backgroundImage:"radial-gradient(circle, rgba(0,0,0,.6) 1px, transparent 1.6px)",
+          backgroundSize:"5px 5px"}}/>
+      </div>
       <div style={{position:"absolute",bottom:0,left:0,width:"60%",height:"55%",zIndex:0,
         clipPath:"polygon(0 30%, 70% 55%, 100% 100%, 0 100%)",
         background:album.accent,opacity:.12,transition:"background .5s"}}/>
@@ -820,6 +851,38 @@ function SongSelect({artist,album,onSelectSong,onBack,audio,onPlayAlbum}){
       <Stripes color={`${song.accent}0d`}/><Halftone/>
       <BackBtn onClick={onBack} label={album.title}/>
 
+      {/* backdrop — giant album cover, angled, with artist cameo overlapping */}
+      <div style={{position:"absolute",inset:0,zIndex:1,pointerEvents:"none",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:isMobile?"-6%":"-14%",right:isMobile?"-24%":"-5%",
+          width:isMobile?"90%":"54%",aspectRatio:"1/1",
+          transform:"rotate(7deg)",clipPath:JAG1,overflow:"hidden"}}>
+          <img src={album.cover} alt=""
+            style={{width:"100%",height:"100%",objectFit:"cover",
+              filter:"grayscale(.7) contrast(1.25) brightness(.55)",opacity:.35}}/>
+          <div style={{position:"absolute",inset:0,mixBlendMode:"multiply",
+            background:`linear-gradient(140deg, ${song.accent}66, ${BLACK} 90%)`,opacity:.8}}/>
+          <div style={{position:"absolute",inset:0,opacity:.35,
+            backgroundImage:"radial-gradient(circle, rgba(0,0,0,.6) 1px, transparent 1.6px)",
+            backgroundSize:"5px 5px"}}/>
+        </div>
+        {!isMobile&&(
+          <div style={{position:"absolute",top:"26%",right:"33%",
+            width:"17%",aspectRatio:"3/4",
+            transform:"rotate(-6deg)",clipPath:JAG2,overflow:"hidden"}}>
+            <img src={artist.image} alt=""
+              style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"top",
+                filter:"grayscale(1) contrast(1.5) brightness(.7)",opacity:.42}}/>
+            <div style={{position:"absolute",inset:0,mixBlendMode:"screen",
+              background:song.accent,opacity:.16}}/>
+            <div style={{position:"absolute",inset:0,
+              background:`linear-gradient(to bottom, transparent 40%, ${BLACK} 100%)`}}/>
+          </div>
+        )}
+        {/* fade everything down so the track bars stay readable */}
+        <div style={{position:"absolute",inset:0,
+          background:`linear-gradient(to bottom, transparent 0%, ${BLACK}55 70%)`}}/>
+      </div>
+
       {/* cover panel with film sprockets — like SAVE slot No.2 — skids in from left */}
       <div style={{position:"absolute",
         top:isMobile?58:"18%", left:isMobile?"50%":54,
@@ -835,7 +898,7 @@ function SongSelect({artist,album,onSelectSong,onBack,audio,onPlayAlbum}){
               width:10,height:12,background:BLACK}}/>
           ))}
           <div style={{position:"relative",border:`2px solid ${BLACK}`,overflow:"hidden"}}>
-            <img src={album.cover} alt={album.title}
+            <img key={"cv"+song.id} src={song.cover||album.cover} alt={song.title}
               style={{width:"100%",aspectRatio:"1/1",objectFit:"cover",display:"block"}}/>
             {/* per-song accent flash — re-fires when selection changes */}
             <div key={song.id} style={{position:"absolute",inset:0,mixBlendMode:"screen",
@@ -978,7 +1041,7 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio}){
           transform:"rotate(3deg)",transition:"background .4s",
           backgroundImage:"repeating-linear-gradient(-45deg,transparent 0 24px,rgba(0,0,0,.2) 24px 29px)"}}/>
         <div style={{position:"absolute",inset:0,clipPath:JAG1,overflow:"hidden",background:BLACK}}>
-          <img src={album.cover} alt={song.title}
+          <img src={song.cover||album.cover} alt={song.title}
             style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",
               animation:"coverFlash .55s ease both"}}/>
           <div style={{position:"absolute",inset:0,mixBlendMode:"multiply",
@@ -986,8 +1049,8 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio}){
           <div style={{position:"absolute",inset:0,opacity:.28,
             backgroundImage:"radial-gradient(circle, rgba(0,0,0,.4) 1px, transparent 1.6px)",
             backgroundSize:"5px 5px"}}/>
-          {/* big track number */}
-          <div style={{position:"absolute",top:8,left:12,
+          {/* big track number — bottom-right, clear of the back button */}
+          <div style={{position:"absolute",bottom:isMobile?30:36,right:14,
             fontSize:isMobile?36:52,fontWeight:900,fontStyle:"italic",color:WHITE,
             textShadow:`3px 3px 0 ${BLACK}`,opacity:.92,
             animation:"numKick .5s cubic-bezier(.3,1.5,.5,1) both"}}>{song.n}</div>
@@ -1010,19 +1073,19 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio}){
       WebkitOverflowScrolling:"touch"}}>
       {/* title — ransom style */}
       <div style={{opacity:entered?1:0,transition:"opacity .4s"}}>
-        <RansomText text={song.title} accent={song.accent} size={isMobile?20:30}/>
+        <RansomText text={song.title} accent={song.accent} size={isMobile?20:38}/>
       </div>
       {/* meta bar */}
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:12,alignItems:"center",
         opacity:entered?1:0,transform:entered?"translateX(0)":"translateX(-20px)",
         transition:"all .4s .1s"}}>
         <div style={{background:BLACK,border:`2px solid ${WHITE}`,color:WHITE,
-          fontSize:8,fontWeight:900,fontStyle:"italic",padding:"3px 9px",
+          fontSize:9.5,fontWeight:900,fontStyle:"italic",padding:"4px 11px",
           transform:"skewX(-10deg)",letterSpacing:1}}>
           <span style={{display:"inline-block",transform:"skewX(10deg)"}}>TRACK {song.n} / {String(N).padStart(2,"0")}</span>
         </div>
         <div style={{background:song.accent,color:WHITE,
-          fontSize:8,fontWeight:900,fontStyle:"italic",padding:"3px 9px",
+          fontSize:9.5,fontWeight:900,fontStyle:"italic",padding:"4px 11px",
           transform:"skewX(-10deg)",letterSpacing:1,boxShadow:`2px 2px 0 ${BLACK}`}}>
           <span style={{display:"inline-block",transform:"skewX(10deg)"}}>{song.genre} · {song.dur}</span>
         </div>
@@ -1034,7 +1097,7 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio}){
         opacity:entered?1:0,transition:"opacity .4s .15s"}}>
         <div style={{display:"inline-block",background:song.accent,padding:"5px 24px",
           clipPath:JAG3,boxShadow:"4px 4px 0 rgba(0,0,0,.85)",transition:"background .4s"}}>
-          <span style={{fontSize:12,fontWeight:900,fontStyle:"italic",color:WHITE,
+          <span style={{fontSize:14,fontWeight:900,fontStyle:"italic",color:WHITE,
             letterSpacing:3,textTransform:"uppercase",
             textShadow:`2px 2px 0 ${BLACK}`}}>STORY BEHIND</span>
         </div>
@@ -1050,11 +1113,11 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio}){
           <div style={{background:i%2?"rgba(255,255,255,.06)":WHITE,
             border:`3px solid ${i%2?"rgba(255,255,255,.14)":BLACK}`,
             boxShadow:i%2?"none":`4px 4px 0 ${BLACK}`,
-            padding:"12px 16px",clipPath:JAG3,
-            display:"flex",gap:12}}>
-            <div style={{width:4,flexShrink:0,background:song.accent,
+            padding:"15px 20px",clipPath:JAG3,
+            display:"flex",gap:14}}>
+            <div style={{width:5,flexShrink:0,background:song.accent,
               transform:"skewY(-10deg)"}}/>
-            <p style={{fontSize:isMobile?11.5:12.5,
+            <p style={{fontSize:isMobile?12:15,
               color:i%2?"rgba(245,245,242,.85)":BLACK,
               fontFamily:"Georgia,serif",fontWeight:400,lineHeight:1.8}}>{p}</p>
           </div>
@@ -1069,11 +1132,11 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio}){
           <div style={{position:"absolute",inset:-6,background:WHITE,clipPath:JAG2,
             transform:"rotate(1.4deg)"}}/>
           <div style={{position:"relative",background:song.accent,clipPath:JAG1,
-            padding:"18px 22px",transition:"background .4s",
+            padding:"24px 28px",transition:"background .4s",
             backgroundImage:"repeating-linear-gradient(-45deg,transparent 0 28px,rgba(0,0,0,.12) 28px 33px)"}}>
-            <div style={{fontSize:isMobile?13:15,fontWeight:900,fontStyle:"italic",color:WHITE,
+            <div style={{fontSize:isMobile?14:19,fontWeight:900,fontStyle:"italic",color:WHITE,
               lineHeight:1.6,textShadow:`2px 2px 0 ${BLACK}`}}>"{song.story.quote}"</div>
-            <div style={{marginTop:8,fontSize:9,fontWeight:900,fontStyle:"italic",
+            <div style={{marginTop:10,fontSize:10.5,fontWeight:900,fontStyle:"italic",
               color:BLACK,letterSpacing:2,textTransform:"uppercase"}}>— {artist.name}</div>
           </div>
           <Star size={26} color={BLACK} style={{position:"absolute",top:-14,right:-8,zIndex:5}}/>
@@ -1114,7 +1177,7 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio}){
           <div style={{display:"flex",alignItems:"center",gap:12,maxWidth:640,margin:"0 auto"}}>
             <div style={{width:40,height:40,flexShrink:0,position:"relative",transform:"rotate(-3deg)"}}>
               <div style={{position:"absolute",inset:-3,background:song.accent,clipPath:JAG3,transition:"background .4s"}}/>
-              <img src={album.cover} alt={song.title}
+              <img src={song.cover||album.cover} alt={song.title}
                 style={{position:"relative",width:"100%",height:"100%",objectFit:"cover",clipPath:JAG3}}/>
             </div>
             <div style={{flex:1,minWidth:0}}>
@@ -1153,6 +1216,61 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio}){
   );
 }
 
+// ═══ MINI PLAYER — floating control on every screen after the title ═══
+function MiniPlayer({audio,nowPlaying,bgOn,onToggleBg}){
+  const accent=(nowPlaying&&nowPlaying.accent)||RED;
+  const hasTrack=!!audio.curSrc;
+  return (
+    <div style={{position:"absolute",bottom:14,right:16,zIndex:75,
+      background:BLACK,border:`2px solid ${WHITE}`,
+      padding:"7px 12px",transform:"skewX(-8deg) rotate(-.5deg)",
+      boxShadow:`4px 4px 0 ${accent}`,
+      animation:"dropIn .4s cubic-bezier(.3,1.5,.5,1) both"}}>
+      <div style={{transform:"skewX(8deg)",display:"flex",alignItems:"center",gap:9}}>
+        {hasTrack?(
+          <React.Fragment>
+            {nowPlaying&&nowPlaying.cover&&(
+              <div style={{width:28,height:28,flexShrink:0,position:"relative",transform:"rotate(-3deg)"}}>
+                <div style={{position:"absolute",inset:-2,background:accent,clipPath:JAG3}}/>
+                <img src={nowPlaying.cover} alt=""
+                  style={{position:"relative",width:"100%",height:"100%",objectFit:"cover",clipPath:JAG3}}/>
+              </div>
+            )}
+            <div style={{minWidth:0,maxWidth:170}}>
+              <div style={{fontSize:9.5,fontWeight:900,fontStyle:"italic",color:WHITE,
+                textTransform:"uppercase",letterSpacing:.5,
+                whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                {nowPlaying?nowPlaying.title:"NOW PLAYING"}</div>
+              {nowPlaying&&<div style={{fontSize:6.5,fontWeight:900,fontStyle:"italic",color:accent,
+                letterSpacing:1.2,textTransform:"uppercase",marginTop:1,
+                whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nowPlaying.artist}</div>}
+            </div>
+            <button onClick={()=>audio.toggle(audio.curSrc)}
+              style={{background:accent,border:`2px solid ${WHITE}`,color:WHITE,
+                width:30,height:30,fontSize:11,fontWeight:900,transform:"skewX(-8deg)",flexShrink:0,
+                display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+                boxShadow:`2px 2px 0 rgba(0,0,0,.6)`}}>
+              <span style={{display:"inline-block",transform:"skewX(8deg)"}}>{audio.playing?"⏸":"▶"}</span>
+            </button>
+          </React.Fragment>
+        ):(
+          <React.Fragment>
+            <span style={{fontSize:8.5,fontWeight:900,fontStyle:"italic",color:WHITE,
+              letterSpacing:2,textTransform:"uppercase",opacity:.7}}>BGM</span>
+            <button onClick={onToggleBg}
+              style={{background:bgOn?RED:"transparent",border:`2px solid ${WHITE}`,color:WHITE,
+                width:30,height:30,fontSize:12,fontWeight:900,transform:"skewX(-8deg)",
+                display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+                opacity:bgOn?1:.55,boxShadow:bgOn?`2px 2px 0 rgba(0,0,0,.6)`:"none"}}>
+              <span style={{display:"inline-block",transform:"skewX(8deg)"}}>{bgOn?"♪":"✕"}</span>
+            </button>
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LoadingScreen(){
   return (
     <div style={{height:"100%",background:BLACK,display:"flex",flexDirection:"column",
@@ -1181,6 +1299,7 @@ function App(){
   const audio=useAudio();
   const bgMusic=useRef(null);
   const bgStarted=useRef(false);
+  const [bgMuted,setBgMuted]=useState(false);
 
   useEffect(()=>{loadRealmData().then(setRealm);},[]);
   useEffect(()=>{
@@ -1199,15 +1318,27 @@ function App(){
   useEffect(()=>{
     const bg=bgMusic.current;
     if(!bg||!bgStarted.current)return;
-    if(audio.playing) bg.pause();
+    if(audio.playing||bgMuted) bg.pause();
     else bg.play().catch(()=>{});
-  },[audio.playing]);
+  },[audio.playing,bgMuted]);
   const startBgMusic=()=>{
     if(bgStarted.current)return;
     bgStarted.current=true;
     const bg=bgMusic.current;
-    if(bg&&!audio.playing) bg.play().catch(()=>{});
+    if(bg&&!audio.playing&&!bgMuted) bg.play().catch(()=>{});
   };
+  const toggleBg=()=>{
+    if(!bgStarted.current){bgStarted.current=true;}
+    setBgMuted(m=>!m);
+  };
+  // find the song object matching whatever the audio element is holding
+  const nowPlaying=React.useMemo(()=>{
+    if(!realm||!audio.curSrc)return null;
+    for(const a of realm)for(const al of a.albums)for(const s of al.songs)
+      if(s.audioSrc===audio.curSrc)
+        return {title:s.title,artist:a.name,cover:s.cover||al.cover,accent:s.accent};
+    return null;
+  },[realm,audio.curSrc]);
 
   const TRANSITIONS={artists:"slashRight",albums:"flashUp",songs:"shatter",story:"irisStar",title:"flashDown"};
   const DEPTH={title:0,artists:1,albums:2,songs:3,story:4};
@@ -1266,6 +1397,10 @@ function App(){
         onBack={()=>goTo("albums")}/>}
       {screen==="story"&&song&&<StoryPage artist={artist} album={album} song={song}
         songIdx={songIdx} onBack={()=>goTo("songs")} onChangeSong={changeSong} audio={audio}/>}
+      {screen!=="title"&&screen!=="story"&&(
+        <MiniPlayer audio={audio} nowPlaying={nowPlaying}
+          bgOn={bgStarted.current&&!bgMuted&&!audio.playing} onToggleBg={toggleBg}/>
+      )}
       <Wipe phase={wipe} variant={wipeVar} color={wipeColor}/>
     </div>
   );

@@ -40,13 +40,14 @@ Edit the three CSVs in `data/` with any spreadsheet app or text editor. Save as 
 
 **`artists.csv`** — `id, name, role, tagline, bio, accent, bloom, dark, tags, image, debut`
 **`albums.csv`** — `id, artist_id, title, year, issue, desc, accent, bloom1, bloom2, tags, cover`
-**`songs.csv`** — `id, album_id, n, title, dur, genre, accent, g1, g2, tags, desc, audio, story_title, story_paragraphs, story_quote`
+**`songs.csv`** — `id, album_id, n, title, dur, genre, accent, g1, g2, tags, desc, audio, cover, story_title, story_paragraphs, story_quote`
 
 Rules:
 - Wrap a field in `"double quotes"` if it has commas or line breaks; escape an inner quote as `""`
 - Tags separate with `|`, story paragraphs separate with `||`
 - Paths (`image`, `cover`, `audio`) are relative to `index.html`, e.g. `covers/minta.png`
 - Leave `image`/`cover`/`audio` blank and the app falls back to a built-in placeholder — nothing breaks
+- A song's `cover` is optional: set it for singles with their own artwork; leave it blank and the song uses its album cover automatically
 
 ## 🎨 Color pairs (accent → bloom → dark)
 

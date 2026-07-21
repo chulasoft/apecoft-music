@@ -1,11 +1,8 @@
-Put your audio files here (wav/mp3). Paths referenced in data/songs.csv, e.g. audio/Off_the_Record_mastered.wav
+Put your song audio files here (.wav or .mp3).
+Filenames must match the "audio" column in data/songs.csv exactly.
 
-Also put the background intro music here, named exactly:
-
-    bgintro.mp3
-
-This plays quietly on a loop starting right after the user taps into
-the site from the title screen, auto-pauses whenever a real track is
-played from the song list, and resumes when nothing else is playing.
-If it's missing, the browser just silently fails to load it — the
-rest of the site still works normally.
+Background music:
+- Put a file named  bgintro.mp3  in this folder.
+- It plays quietly on a loop after you tap the title screen,
+  pauses automatically when a real track starts, and resumes when nothing else plays.
+- Missing bgintro.mp3 just means no background music — nothing else breaks.
