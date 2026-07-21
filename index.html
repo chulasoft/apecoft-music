@@ -255,7 +255,7 @@ function useAudio(){
   return{playing,progress,curSrc,toggle,seek,playSrc,setOnEnded};
 }
 
-// ═══ P5R PRIMITIVES ═══
+// ═══ THEME PRIMITIVES ═══
 const Halftone=({opacity=.5,size=9})=>(
   <div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:2,opacity,
     backgroundImage:"radial-gradient(circle, rgba(255,255,255,.07) 1px, transparent 1.4px)",
@@ -1179,6 +1179,8 @@ function App(){
   const pending=useRef({});
   const queue=useRef([]);
   const audio=useAudio();
+  const bgMusic=useRef(null);
+  const bgStarted=useRef(false);
 
   useEffect(()=>{loadRealmData().then(setRealm);},[]);
   useEffect(()=>{
@@ -1186,6 +1188,26 @@ function App(){
       if(queue.current.length){ audio.playSrc(queue.current.shift()); }
     });
   },[]);
+
+  // background intro music: quiet loop while no track is playing
+  useEffect(()=>{
+    const bg=new Audio("audio/bgintro.mp3");
+    bg.loop=true; bg.volume=0.18;
+    bgMusic.current=bg;
+    return()=>bg.pause();
+  },[]);
+  useEffect(()=>{
+    const bg=bgMusic.current;
+    if(!bg||!bgStarted.current)return;
+    if(audio.playing) bg.pause();
+    else bg.play().catch(()=>{});
+  },[audio.playing]);
+  const startBgMusic=()=>{
+    if(bgStarted.current)return;
+    bgStarted.current=true;
+    const bg=bgMusic.current;
+    if(bg&&!audio.playing) bg.play().catch(()=>{});
+  };
 
   const TRANSITIONS={artists:"slashRight",albums:"flashUp",songs:"shatter",story:"irisStar",title:"flashDown"};
   const DEPTH={title:0,artists:1,albums:2,songs:3,story:4};
@@ -1233,7 +1255,7 @@ function App(){
 
   return (
     <div style={{position:"relative",height:"100%",background:BLACK,overflow:"hidden"}}>
-      {screen==="title"&&<TitleScreen onEnter={()=>goTo("artists")}/>}
+      {screen==="title"&&<TitleScreen onEnter={()=>{startBgMusic();goTo("artists");}}/>}
       {screen==="artists"&&<ArtistSelect artists={realm}
         onSelect={a=>goTo("albums",{artist:a})} onBack={()=>goTo("title")}/>}
       {screen==="albums"&&artist&&<AlbumSelect artist={artist}
