@@ -1,7 +1,7 @@
 id,artist_id,title,year,issue,desc,accent,bloom1,bloom2,tags,cover
-11,1,Love Passion,2025,I,"The debut album capturing every shade of love — from excitement and tenderness to letting go.",#e60012,#ff2438,#6b0410,Love|Passion|J-Pop,covers/love-passion.png
-12,1,Echo Diary,2025,II,"A diary written in echoes — memories that keep answering back long after the moment has passed.",#ff6a00,#ff8c28,#5a2400,Memory|Diary|Pop,covers/echo-diary.png
+11,1,Love Passion,2026,I,The debut album capturing every shade of love from girl view.,#e60012,#ff2438,#6b0410,Love|Passion|J-Pop,covers/love-passion.png
+12,1,Echo Diary,2025,II,A diary written in echoes — memories that keep answering back long after the moment has passed.,#ff6a00,#ff8c28,#5a2400,Memory|Diary|Pop,covers/echo-diary.png
 21,2,Midnight Signal,2025,III,"A midnight signal sent to everyone still awake, in a city that never sleeps.",#00b4e6,#28c8ff,#043048,Night|Electronic|R&B,covers/midnight-signal.png
 22,2,City Pulse,2025,IV,"The heartbeat of the city pressed into sound — traffic, trains, and neon turned into rhythm.",#00e0c0,#28f0d8,#043a32,Urban|Groove|Electronic,covers/city-pulse.png
 31,3,Paper Sky,2025,V,"A paper sky you can write your dreams on, then fold into a plane and send far away.",#c838ff,#d868ff,#38084a,Dream|Poetry|Ballad,covers/paper-sky.png
-32,3,Ink & Air,2025,VI,"Songs that live between the written word and the breath that carries it.",#ff3d9a,#ff68b8,#4a0828,Poetry|Intimate|Acoustic,covers/ink-and-air.png
+32,3,Ink & Air,2025,VI,Songs that live between the written word and the breath that carries it.,#ff3d9a,#ff68b8,#4a0828,Poetry|Intimate|Acoustic,covers/ink-and-air.png
