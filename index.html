@@ -37,6 +37,7 @@ button{font-family:inherit;cursor:pointer}
 /* ── generic flash used on selection swap ── */
 @keyframes coverFlash{0%{filter:brightness(2.6) contrast(1.4)}100%{filter:brightness(1) contrast(1)}}
 @keyframes coverBloom{0%{opacity:.65}55%{opacity:.25}100%{opacity:0}}
+@keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
 @keyframes numKick{0%{transform:scale(2.4) rotate(-12deg);opacity:0}60%{transform:scale(.9) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
 /* artist portrait — whirls UP out of the bottom-right corner, small→big (origin is bottom-right) */
 @keyframes swingUpCorner{0%{transform:rotate(38deg) scale(.28);opacity:0}60%{transform:rotate(-2deg) scale(1.05);opacity:1}80%{transform:rotate(6deg) scale(.98)}100%{transform:rotate(4deg) scale(1);opacity:1}}
@@ -462,16 +463,53 @@ function Wipe({phase,variant,color}){
     </div>;
   }
   if(variant==="zoomBack"){
-    // big star iris shrinks away — used going back from Story to Songs
-    const scale=phase==="in"?24:0;
-    const rot=phase==="in"?-90:phase==="out"?-260:0;
-    return <div style={{position:"fixed",inset:0,zIndex:999,pointerEvents:"none",
-      display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
-      <div style={{position:"absolute",inset:0,background:BLACK,
-        opacity:phase==="in"?.55:0,transition:phase?"opacity .4s":"none"}}/>
-      <div style={{transform:`scale(${scale}) rotate(${rot}deg)`,
-        transition:phase?"transform .44s cubic-bezier(.55,0,.2,1)":"none"}}>
-        <Star size={60} color={RC}/></div></div>;
+    // curtains sweep in from L & R to hide the screen, then part while a big star shrinks away
+    // phase "in" = closed (covering); "out" = parting (revealing); null/enter = off-screen
+    const lx=phase==="in"?"0%":"-104%";
+    const rx=phase==="in"?"0%":"104%";
+    const ease="transform .46s cubic-bezier(.55,0,.2,1)";
+    const scale=phase==="in"?1.4:0;
+    const rot=phase==="in"?0:-260;
+    return <div style={{position:"fixed",inset:0,zIndex:999,pointerEvents:"none",overflow:"hidden"}}>
+      {/* left curtain */}
+      <div style={{position:"absolute",top:0,bottom:0,left:0,width:"52%",
+        transform:`translateX(${lx})`,transition:phase?ease:"none",
+        background:BLACK,borderRight:`5px solid ${RC}`,
+        boxShadow:`8px 0 0 ${RC}`,overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:RC,opacity:.9,backgroundImage:STRIPE_BG,
+          clipPath:"polygon(0 0, 100% 0, 88% 100%, 0 100%)"}}/>
+        <div style={{position:"absolute",inset:0,opacity:.4,
+          backgroundImage:"radial-gradient(circle, rgba(0,0,0,.5) 1.5px, transparent 2px)",
+          backgroundSize:"14px 14px"}}/>
+        <Star size={46} color={BLACK} style={{position:"absolute",top:"16%",left:"20%",
+          animation:"starSpin 1.4s linear infinite"}}/>
+        <Star size={30} color={WHITE} style={{position:"absolute",bottom:"20%",left:"30%",
+          animation:"starSpin 1.8s linear infinite reverse"}}/>
+      </div>
+      {/* right curtain */}
+      <div style={{position:"absolute",top:0,bottom:0,right:0,width:"52%",
+        transform:`translateX(${rx})`,transition:phase?ease:"none",
+        background:BLACK,borderLeft:`5px solid ${RC}`,
+        boxShadow:`-8px 0 0 ${RC}`,overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:RC,opacity:.9,backgroundImage:STRIPE_BG,
+          clipPath:"polygon(12% 0, 100% 0, 100% 100%, 0 100%)"}}/>
+        <div style={{position:"absolute",inset:0,opacity:.4,
+          backgroundImage:"radial-gradient(circle, rgba(0,0,0,.5) 1.5px, transparent 2px)",
+          backgroundSize:"14px 14px"}}/>
+        <Star size={46} color={BLACK} style={{position:"absolute",top:"22%",right:"20%",
+          animation:"starSpin 1.5s linear infinite reverse"}}/>
+        <Star size={30} color={WHITE} style={{position:"absolute",bottom:"16%",right:"28%",
+          animation:"starSpin 1.7s linear infinite"}}/>
+      </div>
+      {/* center star — sits over the closed curtains, shrinks away as they part */}
+      <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,
+        display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{transform:`scale(${scale}) rotate(${rot}deg)`,
+          transition:phase?"transform .46s cubic-bezier(.55,0,.2,1)":"none",
+          filter:`drop-shadow(0 0 0 ${BLACK}) drop-shadow(4px 4px 0 ${BLACK})`}}>
+          <div style={{animation:"starSpin 1s linear infinite"}}><Star size={104} color={WHITE}/></div></div>
+      </div>
+    </div>;
   }
   if(variant==="flashUp"){
     const ty=phase==="in"?"0%":phase==="out"?"-115%":"115%";
@@ -1229,11 +1267,215 @@ function SongSelect({artist,album,onSelectSong,onBack,audio,onPlayAlbum,onMuteHo
   );
 }
 
+// ═══ SHARE CARD — generates a portrait poster image for socials ═══
+function ShareCard({artist,album,song,onClose}){
+  const canvasRef=useRef(null);
+  const [url,setUrl]=useState(null);
+  const [busy,setBusy]=useState(true);
+  const [canShare,setCanShare]=useState(false);
+
+  useEffect(()=>{
+    setCanShare(!!(navigator.canShare&&navigator.share));
+    let cancelled=false;
+    const W=1080,H=1350;
+    const cv=document.createElement("canvas");cv.width=W;cv.height=H;
+    const g=cv.getContext("2d");
+    const accent=song.accent||RED;
+
+    const rrPoly=(pts)=>{g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();};
+    const halftone=(x,y,w,h,color,step,r,alpha)=>{
+      g.save();g.beginPath();g.rect(x,y,w,h);g.clip();g.globalAlpha=alpha;g.fillStyle=color;
+      for(let yy=y;yy<y+h;yy+=step)for(let xx=x;xx<x+w;xx+=step){g.beginPath();g.arc(xx,yy,r,0,7);g.fill();}
+      g.restore();g.globalAlpha=1;
+    };
+    const fitText=(text,max,start,min)=>{let s=start;g.font=`900 italic ${s}px Georgia, serif`;
+      while(g.measureText(text).width>max&&s>min){s-=4;g.font=`900 italic ${s}px Georgia, serif`;}return s;};
+    const wrap=(text,max,size)=>{g.font=`italic ${size}px Georgia, serif`;
+      const words=text.split(/\s+/);const lines=[];let ln="";
+      for(const w of words){const t=ln?ln+" "+w:w;if(g.measureText(t).width>max&&ln){lines.push(ln);ln=w;}else ln=t;}
+      if(ln)lines.push(ln);return lines;};
+
+    const draw=(coverImg)=>{
+      // bg
+      g.fillStyle=BLACK;g.fillRect(0,0,W,H);
+      // faint diagonal stripes
+      g.save();g.globalAlpha=.06;g.strokeStyle=accent;g.lineWidth=26;
+      for(let i=-H;i<W+H;i+=80){g.beginPath();g.moveTo(i,0);g.lineTo(i+H,H);g.stroke();}
+      g.restore();
+      // big accent shard top-left
+      g.fillStyle=accent;g.globalAlpha=.16;rrPoly([[0,0],[W*.66,0],[W*.42,H*.5],[0,H*.36]]);g.fill();g.globalAlpha=1;
+      // white shard bottom-right
+      g.fillStyle=WHITE;g.globalAlpha=.05;rrPoly([[W,H*.55],[W,H],[W*.32,H]]);g.fill();g.globalAlpha=1;
+
+      // ── cover image block (jagged) ──
+      const cx=90,cy=150,cw=W-180,ch=760;
+      g.save();
+      rrPoly([[cx+8,cy],[cx+cw,cy+14],[cx+cw-10,cy+ch],[cx,cy+ch-16]]);
+      g.clip();
+      if(coverImg){
+        // cover-fit
+        const ar=coverImg.width/coverImg.height, box=cw/ch;
+        let dw=cw,dh=ch,dx=cx,dy=cy;
+        if(ar>box){dh=ch;dw=ch*ar;dx=cx-(dw-cw)/2;}else{dw=cw;dh=cw/ar;dy=cy-(dh-ch)/2;}
+        g.drawImage(coverImg,dx,dy,dw,dh);
+        // on-theme duotone: multiply accent gradient (keeps real tones, tints shadows)
+        const grd=g.createLinearGradient(cx,cy,cx+cw,cy+ch);
+        grd.addColorStop(0,"rgba(0,0,0,0)");grd.addColorStop(1,accent+"55");
+        g.globalCompositeOperation="multiply";g.fillStyle=grd;g.fillRect(cx,cy,cw,ch);
+        g.globalCompositeOperation="source-over";
+      }else{g.fillStyle="#222";g.fillRect(cx,cy,cw,ch);}
+      // bottom fade
+      const fade=g.createLinearGradient(0,cy+ch-260,0,cy+ch);
+      fade.addColorStop(0,"rgba(10,10,10,0)");fade.addColorStop(1,BLACK);
+      g.fillStyle=fade;g.fillRect(cx,cy+ch-260,cw,260);
+      g.restore();
+      // cover border
+      g.strokeStyle=BLACK;g.lineWidth=8;
+      rrPoly([[cx+8,cy],[cx+cw,cy+14],[cx+cw-10,cy+ch],[cx,cy+ch-16]]);g.stroke();
+      halftone(cx,cy,cw,ch*.5,"#000",16,2,.12);
+
+      // track number tab (top-left of cover)
+      g.save();g.translate(cx+8,cy-8);g.rotate(-.04);
+      g.fillStyle=accent;g.fillRect(0,0,150,64);g.strokeStyle=BLACK;g.lineWidth=5;g.strokeRect(0,0,150,64);
+      g.fillStyle=WHITE;g.font="900 italic 40px Georgia, serif";g.textBaseline="middle";
+      g.fillText("№ "+song.n,16,34);g.restore();
+
+      // genre badge (top-right of cover)
+      if(song.genre){g.save();g.translate(cx+cw-16,cy+14);g.rotate(.03);
+        g.font="900 italic 30px Georgia, serif";const gw=g.measureText(song.genre.toUpperCase()).width+40;
+        g.fillStyle=BLACK;g.fillRect(-gw,0,gw,54);g.strokeStyle=accent;g.lineWidth=4;g.strokeRect(-gw,0,gw,54);
+        g.fillStyle=accent;g.textBaseline="middle";g.textAlign="right";
+        g.fillText(song.genre.toUpperCase(),-20,28);g.textAlign="left";g.restore();}
+
+      // ── title ──
+      let ty=cy+ch+96;
+      const tSize=fitText(song.title.toUpperCase(),W-200,92,44);
+      g.save();g.translate(100,ty);g.rotate(-.02);
+      g.font=`900 italic ${tSize}px Georgia, serif`;g.textBaseline="alphabetic";
+      // shadow
+      g.fillStyle=accent;g.fillText(song.title.toUpperCase(),5,5);
+      g.fillStyle=WHITE;g.fillText(song.title.toUpperCase(),0,0);
+      g.restore();
+      ty+=48;
+
+      // ── artist + duration ──
+      g.save();g.translate(104,ty);g.rotate(-.02);
+      g.fillStyle=accent;g.font="900 italic 42px Georgia, serif";
+      g.fillText(artist.name.toUpperCase()+"  ·  "+(song.dur||""),0,0);
+      g.restore();
+      ty+=60;
+
+      // ── album line ──
+      g.fillStyle=WHITE;g.globalAlpha=.6;g.font="italic 30px Georgia, serif";
+      g.fillText("from “"+album.title+"”"+(album.year?"  ("+album.year+")":""),104,ty);
+      g.globalAlpha=1;ty+=20;
+
+      // ── quote (if any) ──
+      if(song.story&&song.story.quote){
+        ty+=34;const qx=100,qw=W-200;
+        const lines=wrap('“'+song.story.quote+'”',qw-40,34).slice(0,3);
+        const qh=lines.length*46+40;
+        g.fillStyle=accent;g.globalAlpha=.14;g.fillRect(qx,ty,qw,qh);g.globalAlpha=1;
+        g.fillStyle=accent;g.fillRect(qx,ty,8,qh);
+        g.fillStyle=WHITE;g.font="italic 34px Georgia, serif";g.textBaseline="top";
+        lines.forEach((l,i)=>g.fillText(l,qx+28,ty+20+i*46));
+        g.textBaseline="alphabetic";
+      }
+
+      // ── footer brand bar ──
+      const fy=H-92;
+      g.fillStyle=accent;g.fillRect(0,fy,W,92);
+      halftone(0,fy,W,92,"#000",14,2,.15);
+      g.fillStyle=WHITE;g.font="900 italic 40px Georgia, serif";g.textBaseline="middle";
+      g.fillText("APECOFT",60,fy+46);
+      g.fillStyle=BLACK;g.fillText("MUSIC",60+g.measureText("APECOFT").width+18,fy+46);
+      g.textAlign="right";g.fillStyle=WHITE;g.font="italic 26px Georgia, serif";
+      g.fillText("SOUND & STORY LABEL",W-60,fy+46);g.textAlign="left";g.textBaseline="alphabetic";
+
+      cv.toBlob(b=>{if(cancelled)return;
+        const u=URL.createObjectURL(b);setUrl(u);setBusy(false);
+        canvasRef.current=b;
+      },"image/png");
+    };
+
+    const src=song.cover||album.cover;
+    if(src){
+      const im=new Image();im.crossOrigin="anonymous";
+      im.onload=()=>{if(!cancelled)draw(im);};
+      im.onerror=()=>{if(!cancelled)draw(null);};
+      im.src=src;
+    }else draw(null);
+    return()=>{cancelled=true;};
+  },[song.id]);
+
+  const fileName=(song.title||"track").replace(/[^\w]+/g,"-").toLowerCase()+"-apecoft.png";
+  const doDownload=()=>{if(!url)return;const a=document.createElement("a");a.href=url;a.download=fileName;a.click();};
+  const doShare=async()=>{
+    try{const blob=canvasRef.current;if(!blob)return;
+      const file=new File([blob],fileName,{type:"image/png"});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:song.title,
+          text:`${song.title} — ${artist.name} · APECOFT MUSIC`});
+      }else doDownload();
+    }catch(e){/* user cancelled */}
+  };
+
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:200,
+      background:"rgba(5,5,5,.86)",backdropFilter:"blur(4px)",
+      display:"flex",alignItems:"center",justifyContent:"center",padding:20,
+      animation:"fadeIn .25s ease both"}}>
+      <div onClick={e=>e.stopPropagation()} style={{position:"relative",
+        display:"flex",flexDirection:"column",alignItems:"center",gap:16,maxHeight:"92vh"}}>
+        {/* close */}
+        <button onClick={onClose} style={{position:"absolute",top:-14,right:-14,zIndex:3,
+          background:WHITE,border:`3px solid ${BLACK}`,color:BLACK,width:40,height:40,
+          fontSize:18,fontWeight:900,cursor:"pointer",transform:"skewX(-8deg)",
+          boxShadow:`3px 3px 0 ${song.accent}`}}>
+          <span style={{display:"inline-block",transform:"skewX(8deg)"}}>✕</span></button>
+
+        <div style={{position:"relative",border:`4px solid ${song.accent}`,
+          boxShadow:`10px 10px 0 rgba(0,0,0,.6)`,background:BLACK,
+          maxHeight:"74vh",aspectRatio:"1080/1350",overflow:"hidden"}}>
+          {busy&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",
+            justifyContent:"center",color:WHITE,fontWeight:900,fontStyle:"italic",
+            letterSpacing:2,fontSize:14}}>RENDERING…</div>}
+          {url&&<img src={url} alt="share card"
+            style={{display:"block",height:"74vh",width:"auto",maxWidth:"88vw",objectFit:"contain"}}/>}
+        </div>
+
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
+          {canShare&&<button onClick={doShare} disabled={busy}
+            style={{background:song.accent,border:`3px solid ${BLACK}`,color:WHITE,
+              padding:"12px 28px",fontSize:15,fontWeight:900,fontStyle:"italic",
+              textTransform:"uppercase",letterSpacing:1,transform:"skewX(-8deg)",
+              cursor:busy?"default":"pointer",opacity:busy?.5:1,
+              boxShadow:`4px 4px 0 rgba(255,255,255,.15)`}}>
+            <span style={{display:"inline-block",transform:"skewX(8deg)"}}>⤴ SHARE</span></button>}
+          <button onClick={doDownload} disabled={busy}
+            style={{background:WHITE,border:`3px solid ${BLACK}`,color:BLACK,
+              padding:"12px 28px",fontSize:15,fontWeight:900,fontStyle:"italic",
+              textTransform:"uppercase",letterSpacing:1,transform:"skewX(-8deg)",
+              cursor:busy?"default":"pointer",opacity:busy?.5:1,
+              boxShadow:`4px 4px 0 ${song.accent}`}}>
+            <span style={{display:"inline-block",transform:"skewX(8deg)"}}>⤓ SAVE IMAGE</span></button>
+        </div>
+        <div style={{fontSize:10,fontWeight:900,fontStyle:"italic",color:WHITE,opacity:.4,
+          letterSpacing:1,textTransform:"uppercase"}}>
+          {canShare?"Share to socials, or save the poster":"Save the poster, then post it anywhere"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══ STORY — image left / slanted content right ═══
 function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio,onMuteHold}){
   const isMobile=useIsMobile();
   const isPlaying=audio.playing&&(audio.curSrc===song.audioSrc||!song.audioSrc);
   const [entered,setEntered]=useState(false);
+  const [showShare,setShowShare]=useState(false);
+  useEffect(()=>{setShowShare(false);},[song.id]);
   useEffect(()=>{setEntered(false);const t=setTimeout(()=>setEntered(true),80);return()=>clearTimeout(t);},[song.id]);
   const N=album.songs.length;
 
@@ -1462,10 +1704,18 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio,onMuteHo
                   width:32,height:32,fontSize:11,fontWeight:900,transform:"skewX(-10deg)",
                   opacity:songIdx===N-1?.2:.6,
                   display:"flex",alignItems:"center",justifyContent:"center"}}>▸</button>
+              <button onClick={()=>setShowShare(true)} title="Share"
+                style={{background:WHITE,border:`3px solid ${BLACK}`,color:BLACK,
+                  width:38,height:38,fontSize:15,fontWeight:900,transform:"skewX(-10deg)",marginLeft:4,
+                  boxShadow:`3px 3px 0 ${song.accent}`,cursor:"pointer",
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <span style={{display:"inline-block",transform:"skewX(10deg)"}}>⤴</span>
+              </button>
             </div>
           </div>
         </div>
       </div>
+      {showShare&&<ShareCard artist={artist} album={album} song={song} onClose={()=>setShowShare(false)}/>}
     </div>
   );
 }
