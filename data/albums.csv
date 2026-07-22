@@ -5,3 +5,5 @@ id,artist_id,title,year,issue,desc,accent,bloom1,bloom2,tags,cover
 22,2,City Pulse,2025,IV,"The heartbeat of the city pressed into sound — traffic, trains, and neon turned into rhythm.",#00e0c0,#28f0d8,#043a32,Urban|Groove|Electronic,covers/city-pulse.png
 31,3,Paper Sky,2025,V,"A paper sky you can write your dreams on, then fold into a plane and send far away.",#c838ff,#d868ff,#38084a,Dream|Poetry|Ballad,covers/paper-sky.png
 32,3,Ink & Air,2025,VI,Songs that live between the written word and the breath that carries it.,#ff3d9a,#ff68b8,#4a0828,Poetry|Intimate|Acoustic,covers/ink-and-air.png
+41,4,Pixel Moon,2026,VII,"A neon diary of moonlit screens, small hopes, and messages sent after midnight.",#6cf0ff,#9af7ff,#063848,Synth-Pop|Moonlight|Digital,
+42,4,Arcade Heartbeat,2026,VIII,"A playful second chapter where blinking machines, city noise, and honest emotions beat in sync.",#ff4fd8,#ff8ee8,#3a0630,Arcade|Dance|Electro,
