@@ -7,15 +7,28 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400;1,9..40,500&family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#0a0a0a;overflow:hidden;height:100%}
-body{font-family:'Arial Black','Arial Bold',Arial,sans-serif}
+body{font-family:'Syne','Arial Black','Arial Bold',Arial,'Noto Sans Thai',sans-serif}
 #root{height:100vh;height:100dvh;position:relative;overflow:hidden}
 button{font-family:inherit;cursor:pointer}
 ::-webkit-scrollbar{display:none}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
 @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
 @keyframes floaty{0%,100%{transform:translateY(0) rotate(var(--r,0deg))}50%{transform:translateY(-10px) rotate(var(--r,0deg))}}
+/* slow drift for background cutout shapes — float only, never scale (clip-path edges would tear) */
+@keyframes drift{0%,100%{transform:translateY(0) rotate(var(--r,0deg));opacity:var(--o,.1)}50%{transform:translateY(-16px) rotate(var(--r,0deg));opacity:calc(var(--o,.1) * 1.5)}}
+@keyframes driftAlt{0%,100%{transform:translateY(0) rotate(var(--r,0deg));opacity:var(--o,.1)}50%{transform:translateY(13px) rotate(var(--r,0deg));opacity:calc(var(--o,.1) * 1.45)}}
+/* buttons: barely-there breath so the UI feels alive without wobbling */
+@keyframes btnBreath{0%,100%{transform:var(--sk,skewX(-12deg)) scale(1)}50%{transform:var(--sk,skewX(-12deg)) scale(1.025)}}
+/* play button while audio is live */
+@keyframes playGlow{0%,100%{box-shadow:4px 4px 0 rgba(255,255,255,.15), 0 0 14px var(--gc,#e60012)66}50%{box-shadow:4px 4px 0 rgba(255,255,255,.15), 0 0 34px var(--gc,#e60012)}}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes slideStripes{to{background-position:80px 0}}
 @keyframes popIn{0%{transform:scale(.6) skewX(-10deg);opacity:0}70%{transform:scale(1.06) skewX(-10deg)}100%{transform:scale(1) skewX(-10deg);opacity:1}}
@@ -335,26 +348,113 @@ function OutlineText({children,size=40,color=WHITE,outline=BLACK,skew=-8,style})
   );
 }
 // Ransom-note lettering (name plates) — wraps per WORD, never mid-word
-function RansomText({text,accent,size=40}){
-  const styles=[{bg:WHITE,fg:BLACK},{bg:BLACK,fg:WHITE},{bg:accent,fg:WHITE}];
-  let gi=0; // global letter index across whole string (keeps color/rotation pattern)
+// Radiating wedge burst — faint background texture (from classic poster/comic layouts)
+function Burst({color=WHITE,opacity=.05,size="70vmax",top="50%",left="50%",spin=false,rays=24}){
   return (
-    <div style={{display:"flex",flexWrap:"wrap",columnGap:size*.4,rowGap:8,alignItems:"flex-end"}}>
-      {text.split(/\s+/).filter(Boolean).map((word,wi)=>{
-        const start=gi; gi+=word.length+1;
+    <div style={{position:"absolute",top,left,width:size,height:size,zIndex:0,
+      transform:"translate(-50%,-50%)",pointerEvents:"none",opacity,
+      background:`repeating-conic-gradient(${color} 0deg ${180/rays}deg, transparent ${180/rays}deg ${360/rays}deg)`,
+      borderRadius:"50%",
+      maskImage:"radial-gradient(circle, #000 20%, transparent 72%)",
+      WebkitMaskImage:"radial-gradient(circle, #000 20%, transparent 72%)",
+      animation:spin?"spin 90s linear infinite":"none"}}/>
+  );
+}
+
+// Split label — first 2-3 chars boxed in accent, the rest plain. Good for section headers.
+function SplitLabel({text,accent,size=13,cut=3}){
+  const t=String(text);
+  const head=t.slice(0,cut), tail=t.slice(cut);
+  return (
+    <span style={{display:"inline-flex",alignItems:"stretch",transform:"skewX(-9deg)",
+      boxShadow:`3px 3px 0 ${BLACK}`}}>
+      <span style={{background:accent,color:WHITE,fontSize:size,fontWeight:800,fontStyle:"italic",
+        padding:`3px ${size*.5}px`,letterSpacing:1,textTransform:"uppercase",
+        borderRight:`2px solid ${BLACK}`}}>
+        <span style={{display:"inline-block",transform:"skewX(9deg)"}}>{head}</span></span>
+      {tail&&<span style={{background:BLACK,color:WHITE,fontSize:size,fontWeight:800,fontStyle:"italic",
+        padding:`3px ${size*.55}px`,letterSpacing:1.5,textTransform:"uppercase",opacity:.95}}>
+        <span style={{display:"inline-block",transform:"skewX(9deg)"}}>{tail}</span></span>}
+    </span>
+  );
+}
+
+// Angled callout panel with a labelled tab — used to give descriptions some structure
+function Callout({label,accent,children,tone="dark",tilt=-1,style}){
+  const dark=tone==="dark";
+  return (
+    <div style={{position:"relative",marginTop:16,transform:`rotate(${tilt}deg)`,...style}}>
+      {/* tab */}
+      <div style={{position:"absolute",top:-13,left:14,zIndex:2}}>
+        <SplitLabel text={label} accent={accent} size={11} cut={3}/>
+      </div>
+      {/* body */}
+      <div style={{background:dark?BLACK:WHITE,
+        border:`3px solid ${dark?WHITE:BLACK}`,
+        boxShadow:`5px 5px 0 ${dark?accent:BLACK}`,
+        clipPath:"polygon(0 0, 100% 0, 100% 84%, 96% 100%, 0 100%)",
+        padding:"20px 20px 16px"}}>
+        {children}
+      </div>
+      {/* pointer tail */}
+      <div style={{position:"absolute",left:26,bottom:-13,width:26,height:14,
+        background:dark?BLACK:WHITE,
+        clipPath:"polygon(0 0, 100% 0, 22% 100%)",
+        filter:`drop-shadow(0 3px 0 ${dark?WHITE:BLACK})`}}/>
+    </div>
+  );
+}
+
+// Ransom-note lettering — wraps per WORD, never mid-word.
+// depth=true gives the letters a receding perspective: first letter largest,
+// each following one slightly smaller / offset, front letters overlapping the back ones.
+const hasThai=s=>/[\u0E00-\u0E7F]/.test(s);
+function RansomText({text,accent,size=40,depth=false}){
+  const styles=[{bg:WHITE,fg:BLACK},{bg:BLACK,fg:WHITE},{bg:accent,fg:WHITE}];
+  // Thai needs its clusters kept whole — splitting per char detaches vowels/tone marks
+  const thai=hasThai(text);
+  const useDepth=depth&&!thai;
+  const words=text.split(/\s+/).filter(Boolean);
+  const total=text.replace(/\s+/g,"").length;
+  let gi=0;
+  return (
+    <div style={{display:"flex",flexWrap:"wrap",
+      columnGap:useDepth?size*.24:size*.4,rowGap:useDepth?14:8,
+      alignItems:"flex-end",perspective:useDepth?900:undefined}}>
+      {words.map((word,wi)=>{
+        const start=gi; gi+=word.length;
+        const units=thai?[word]:word.split("");
         return (
-          <div key={wi} style={{display:"flex",gap:5,alignItems:"flex-end",flexWrap:"nowrap"}}>
-            {word.split("").map((ch,ci)=>{
+          <div key={wi} style={{display:"flex",gap:useDepth?2:5,
+            alignItems:"flex-end",flexWrap:"nowrap",
+            transformStyle:useDepth?"preserve-3d":undefined}}>
+            {units.map((ch,ci)=>{
               const i=start+ci;
               const st=styles[(i*7+3)%3];
-              const rot=((i*37)%11)-5;
+              // depth ramp: 1 → floor across the whole string, so long names stay readable
+              const t=total>1?i/(total-1):0;
+              const scale=useDepth?(1-t*0.45):1;              // floor = 0.55
+              const lift=useDepth?-Math.sin(t*Math.PI*1.35)*size*0.20:0; // gentle arc, not a straight line
+              const rot=useDepth?(((i*29)%7)-3):(((i*37)%11)-5);
+              const yaw=useDepth?-6-t*10:0;                   // turn away from the viewer
+              const fs=useDepth?Math.round(size*scale):size+((i*13)%3)*3;
               return (
                 <span key={ci} style={{"--rr":`${rot}deg`,
                   background:st.bg,color:st.fg,
-                  fontSize:size+((i*13)%3)*3,fontWeight:900,fontStyle:"italic",
-                  textTransform:"uppercase",padding:`0 ${size*.14}px`,
-                  transform:`rotate(${rot}deg)`,display:"inline-block",
-                  boxShadow:`3px 3px 0 ${st.bg===BLACK?accent:BLACK}`,lineHeight:1.15,
+                  fontSize:fs,fontWeight:800,fontStyle:"italic",
+                  fontFamily:thai?"'Noto Sans Thai',sans-serif":"'Syne',sans-serif",
+                  textTransform:thai?"none":"uppercase",
+                  padding:`0 ${fs*.14}px`,
+                  transform:useDepth
+                    ? `translateY(${lift}px) rotate(${rot}deg) rotateY(${yaw}deg)`
+                    : `rotate(${rot}deg)`,
+                  transformOrigin:"bottom center",
+                  marginRight:useDepth?-Math.round(fs*.06):0,  // front letter overlaps the next
+                  zIndex:useDepth?100-i:undefined,
+                  position:"relative",
+                  display:"inline-block",
+                  boxShadow:`${Math.max(2,Math.round(3*scale))}px ${Math.max(2,Math.round(3*scale))}px 0 ${st.bg===BLACK?accent:BLACK}`,
+                  lineHeight:1.15,
                   animation:`ransomPop .4s ${i*.04}s both cubic-bezier(.3,1.6,.5,1)`}}>{ch}</span>
               );
             })}
@@ -378,11 +478,13 @@ function P5Button({children,onClick,accent=RED,big}){
   return (
     <button onClick={onClick}
       onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-      style={{background:hov?WHITE:accent,border:`3px solid ${BLACK}`,
-        color:hov?accent:WHITE,fontSize:big?13:10,fontWeight:900,fontStyle:"italic",
+      style={{"--sk":"skewX(-12deg)",
+        background:hov?WHITE:accent,border:`3px solid ${BLACK}`,
+        color:hov?accent:WHITE,fontSize:big?13:10,fontWeight:800,fontStyle:"italic",
         letterSpacing:1,textTransform:"uppercase",padding:big?"12px 38px":"9px 24px",
         transform:`skewX(-12deg) ${hov?"scale(1.06)":"scale(1)"}`,
         boxShadow:hov?`6px 6px 0 ${BLACK}`:`4px 4px 0 ${BLACK}`,
+        animation:hov?"none":"btnBreath 3.6s ease-in-out infinite",
         transition:"all .15s cubic-bezier(.3,1.6,.5,1)"}}>
       <span style={{display:"inline-block",transform:"skewX(12deg)"}}>{children}</span>
     </button>
@@ -756,31 +858,35 @@ function ArtistSelect({artists,onSelect,onBack,audio,onMuteHold}){
         marginTop:isMobile?-44:0,
         alignSelf:isMobile?"stretch":"flex-start",
         width:isMobile?"100%":"62%",maxWidth:isMobile?"100%":540}}>
-        <RansomText text={artist.name} accent={artist.accent} size={isMobile?26:48}/>
+        <RansomText text={artist.name} accent={artist.accent} size={isMobile?26:48} depth/>
         <div style={{marginTop:12,display:"inline-block",background:BLACK,
           padding:"4px 15px",transform:"rotate(-1.5deg)",
           boxShadow:`3px 3px 0 ${artist.accent}`}}>
           <span style={{fontSize:11,fontWeight:900,fontStyle:"italic",color:artist.accent,
             letterSpacing:2,textTransform:"uppercase"}}>{artist.tagline}</span>
         </div>
-        {/* white description panel */}
-        <div style={{marginTop:14,background:WHITE,border:`3px solid ${BLACK}`,
-          boxShadow:`5px 5px 0 ${BLACK}`,padding:"15px 20px",
-          transform:"rotate(-.6deg)",clipPath:JAG3}}>
-          <p style={{fontSize:isMobile?11:14.5,color:BLACK,fontFamily:"Georgia,serif",
-            fontWeight:400,lineHeight:1.75}}>
+        {/* description — callout panel with a labelled tab */}
+        <Callout label="PROFILE" accent={artist.accent} tone="light" tilt={-.6}>
+          <p style={{fontSize:isMobile?13:15.5,color:BLACK,
+            fontFamily:"'DM Sans','Noto Sans Thai',sans-serif",
+            fontWeight:400,lineHeight:1.72,letterSpacing:.1}}>
             {artist.bio}
           </p>
-        </div>
+        </Callout>
         {/* genre + stats row */}
         <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:12,alignItems:"center"}}>
           {artist.tags.map(t=><Tag key={t} label={t} accent={artist.accent}/>)}
-          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+          <div style={{marginLeft:"auto",display:"flex",gap:7}}>
             {[["ALB",artist.stats.albums],["SONGS",artist.stats.songs],["EST.",artist.stats.debut]].map(([l,v],i)=>(
-              <div key={l} style={{background:i===1?artist.accent:BLACK,color:WHITE,
-                fontSize:8,fontWeight:900,fontStyle:"italic",padding:"4px 9px",
-                transform:`skewX(-10deg) rotate(${i-1}deg)`,letterSpacing:.5}}>
-                <span style={{display:"inline-block",transform:"skewX(10deg)"}}>{l} {v}</span>
+              <div key={l} style={{transform:`skewX(-10deg) rotate(${i-1}deg)`,
+                border:`2px solid ${WHITE}`,background:BLACK,
+                boxShadow:`3px 3px 0 ${i===1?artist.accent:"rgba(0,0,0,.6)"}`,
+                minWidth:52,textAlign:"center",overflow:"hidden"}}>
+                <div style={{background:i===1?artist.accent:WHITE,
+                  color:i===1?WHITE:BLACK,fontSize:7,fontWeight:800,fontStyle:"italic",
+                  letterSpacing:1,padding:"1px 0",textTransform:"uppercase"}}>{l}</div>
+                <div style={{color:WHITE,fontSize:15,fontWeight:800,fontStyle:"italic",
+                  padding:"3px 8px 4px",lineHeight:1}}>{v}</div>
               </div>
             ))}
           </div>
@@ -918,23 +1024,21 @@ function AlbumSelect({artist,onSelect,onBack,audio,onMuteHold}){
           transform:"rotate(-.8deg)",
           animation:"dropIn .45s .1s both cubic-bezier(.3,1.4,.5,1)"}}>
           {/* header tab */}
-          <div style={{position:"absolute",top:-11,left:14,zIndex:2,
-            background:album.accent,padding:"3px 14px",clipPath:JAG3,
-            boxShadow:`3px 3px 0 ${BLACK}`,transform:"rotate(-1.5deg)"}}>
-            <span style={{fontSize:8,fontWeight:900,fontStyle:"italic",color:WHITE,
-              letterSpacing:2,textTransform:"uppercase",textShadow:`1px 1px 0 ${BLACK}`}}>Liner Notes</span>
+          <div style={{position:"absolute",top:-13,left:14,zIndex:2}}>
+            <SplitLabel text="LINER NOTES" accent={album.accent} size={11} cut={5}/>
           </div>
           {/* card */}
           <div style={{background:WHITE,border:`3px solid ${BLACK}`,
-            boxShadow:`5px 5px 0 ${BLACK}`,padding:"18px 18px 15px",clipPath:JAG3}}>
+            boxShadow:`5px 5px 0 ${BLACK}`,padding:"22px 18px 15px",clipPath:JAG3}}>
             <div style={{display:"flex",gap:12}}>
               <div style={{width:5,flexShrink:0,background:album.accent,
                 transform:"skewY(-8deg)"}}/>
-              <p style={{fontSize:isMobile?12:13.5,color:BLACK,fontFamily:"Georgia,serif",
-                fontWeight:400,lineHeight:1.75,fontStyle:"italic"}}>
-                <span style={{float:"left",fontSize:isMobile?30:40,fontWeight:900,
-                  fontStyle:"italic",fontFamily:"Georgia,serif",lineHeight:.8,
-                  color:album.accent,marginRight:8,marginTop:2,
+              <p style={{fontSize:isMobile?13:15,color:BLACK,
+                fontFamily:"'DM Sans','Noto Sans Thai',sans-serif",
+                fontWeight:400,lineHeight:1.7,fontStyle:"italic"}}>
+                <span style={{float:"left",fontSize:isMobile?32:44,fontWeight:800,
+                  fontStyle:"italic",fontFamily:"'Syne',sans-serif",lineHeight:.82,
+                  color:album.accent,marginRight:9,marginTop:2,
                   textShadow:`2px 2px 0 ${BLACK}`}}>{(album.desc||"").charAt(0)}</span>
                 {(album.desc||"").slice(1)}
               </p>
@@ -1032,16 +1136,18 @@ function AlbumSelect({artist,onSelect,onBack,audio,onMuteHold}){
         clipPath:"polygon(0 0, 100% 0, 0 100%)",
         background:WHITE,opacity:.05}}/>
       <div style={{position:"absolute",top:"-2%",left:"8%",width:"22%",height:"30%",zIndex:0,pointerEvents:"none",
-        clipPath:"polygon(0 0, 100% 0, 34% 100%)",
-        background:album.accent,opacity:.14,transition:"background .5s"}}/>
+        clipPath:"polygon(0 0, 100% 0, 34% 100%)","--o":.14,"--r":"0deg",
+        background:album.accent,opacity:.14,transition:"background .5s",
+        animation:"drift 9s ease-in-out infinite"}}/>
       <div style={{position:"absolute",bottom:"6%",right:"2%",width:"26%",height:"34%",zIndex:0,pointerEvents:"none",
         clipPath:"polygon(100% 0, 100% 100%, 0 100%)",
         background:BLACK,opacity:.55,
         boxShadow:`inset 0 0 0 2px ${album.accent}22`}}/>
       <div style={{position:"absolute",top:"40%",right:"30%",width:"14%",height:"20%",zIndex:0,pointerEvents:"none",
-        clipPath:"polygon(50% 0, 100% 100%, 0 100%)",
+        clipPath:"polygon(50% 0, 100% 100%, 0 100%)","--o":.08,"--r":"8deg",
         background:album.accent,opacity:.08,transition:"background .5s",
-        transform:"rotate(8deg)"}}/>
+        transform:"rotate(8deg)",
+        animation:"driftAlt 11s ease-in-out infinite"}}/>
       <div style={{position:"relative",zIndex:10,height:"100%",
         display:"flex",flexDirection:isMobile?"column":"row",
         alignItems:isMobile?"stretch":"center",
@@ -1081,6 +1187,7 @@ function SongSelect({artist,album,onSelectSong,onBack,audio,onPlayAlbum,onMuteHo
   return (
     <div style={{height:"100%",background:BLACK,position:"relative",overflow:"hidden",userSelect:"none"}}>
       <Stripes color={`${song.accent}0d`}/><Halftone/>
+      <Burst color={WHITE} opacity={.03} size="80vmax" top="34%" left="72%" spin rays={24}/>
       <BackBtn onClick={onBack} label={album.title}/>
 
       {/* backdrop — giant album cover, angled, with artist cameo overlapping */}
@@ -1133,11 +1240,14 @@ function SongSelect({artist,album,onSelectSong,onBack,audio,onPlayAlbum,onMuteHo
       <div style={{position:"absolute",top:0,left:0,width:"30%",height:"40%",zIndex:0,pointerEvents:"none",
         clipPath:"polygon(0 0, 100% 0, 0 100%)",background:WHITE,opacity:.045}}/>
       <div style={{position:"absolute",top:"-2%",left:"6%",width:"20%",height:"26%",zIndex:0,pointerEvents:"none",
-        clipPath:"polygon(0 0, 100% 0, 30% 100%)",
-        background:song.accent,opacity:.13,transition:"background .5s"}}/>
+        clipPath:"polygon(0 0, 100% 0, 30% 100%)","--o":.13,"--r":"0deg",
+        background:song.accent,opacity:.13,transition:"background .5s",
+        animation:"drift 10s ease-in-out infinite"}}/>
       <div style={{position:"absolute",bottom:"8%",left:"36%",width:"14%",height:"20%",zIndex:0,pointerEvents:"none",
         clipPath:"polygon(50% 0, 100% 100%, 0 100%)",transform:"rotate(-10deg)",
-        background:song.accent,opacity:.08,transition:"background .5s"}}/>
+        "--o":.08,"--r":"-10deg",
+        background:song.accent,opacity:.08,transition:"background .5s",
+        animation:"driftAlt 12s ease-in-out infinite"}}/>
 
       {/* cover panel with film sprockets — like SAVE slot No.2 — skids in from left */}
       <div style={{position:"absolute",
@@ -1560,14 +1670,9 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio,onMuteHo
       </div>
 
       {/* STORY banner */}
-      <div style={{margin:"22px 0 16px",transform:"rotate(-1.5deg)",
+      <div style={{margin:"24px 0 18px",transform:"rotate(-1.5deg)",
         opacity:entered?1:0,transition:"opacity .4s .15s"}}>
-        <div style={{display:"inline-block",background:song.accent,padding:"5px 24px",
-          clipPath:JAG3,boxShadow:"4px 4px 0 rgba(0,0,0,.85)",transition:"background .4s"}}>
-          <span style={{fontSize:14,fontWeight:900,fontStyle:"italic",color:WHITE,
-            letterSpacing:3,textTransform:"uppercase",
-            textShadow:`2px 2px 0 ${BLACK}`}}>STORY BEHIND</span>
-        </div>
+        <SplitLabel text="STORY BEHIND" accent={song.accent} size={15} cut={5}/>
       </div>
 
       {/* paragraphs — alternating skewed panels */}
@@ -1584,9 +1689,10 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio,onMuteHo
             display:"flex",gap:14}}>
             <div style={{width:5,flexShrink:0,background:song.accent,
               transform:"skewY(-10deg)"}}/>
-            <p style={{fontSize:isMobile?12:15,
-              color:i%2?"rgba(245,245,242,.85)":BLACK,
-              fontFamily:"Georgia,serif",fontWeight:400,lineHeight:1.8}}>{p}</p>
+            <p style={{fontSize:isMobile?13.5:16,
+              color:i%2?"rgba(245,245,242,.9)":BLACK,
+              fontFamily:"'DM Sans','Noto Sans Thai',sans-serif",
+              fontWeight:400,lineHeight:1.75,letterSpacing:.1}}>{p}</p>
           </div>
         </div>
       ))}
@@ -1615,6 +1721,7 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio,onMuteHo
   return (
     <div style={{height:"100%",background:BLACK,position:"relative",overflow:"hidden"}}>
       <Stripes color={`${song.accent}0a`}/><Halftone/>
+      <Burst color={WHITE} opacity={.035} size="90vmax" top="42%" left="62%" spin rays={28}/>
       <BackBtn onClick={onBack} label="Tracks"/>
       {/* accent shard */}
       <div style={{position:"absolute",top:0,left:0,width:"48%",height:"100%",zIndex:0,
@@ -1626,10 +1733,14 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio,onMuteHo
         background:song.g2||song.accent,opacity:.1,transition:"background .5s"}}/>
       <div style={{position:"absolute",bottom:"14%",right:"6%",width:"22%",height:"30%",zIndex:0,pointerEvents:"none",
         clipPath:"polygon(50% 0, 100% 100%, 0 100%)",transform:"rotate(6deg)",
-        background:song.accent,opacity:.09,transition:"background .5s"}}/>
+        "--o":.09,"--r":"6deg",
+        background:song.accent,opacity:.09,transition:"background .5s",
+        animation:"drift 10.5s ease-in-out infinite"}}/>
       <div style={{position:"absolute",top:"38%",left:"52%",width:"16%",height:"24%",zIndex:0,pointerEvents:"none",
         clipPath:"polygon(0 0, 100% 22%, 78% 100%, 22% 82%)",transform:"rotate(-8deg)",
-        background:WHITE,opacity:.04}}/>
+        "--o":.04,"--r":"-8deg",
+        background:WHITE,opacity:.04,
+        animation:"driftAlt 13s ease-in-out infinite"}}/>
       <div style={{position:"absolute",bottom:0,left:"30%",width:"26%",height:"18%",zIndex:0,pointerEvents:"none",
         clipPath:"polygon(0 100%, 40% 0, 100% 100%)",
         background:song.accent,opacity:.1,transition:"background .5s"}}/>
@@ -1692,9 +1803,11 @@ function StoryPage({artist,album,song,songIdx,onBack,onChangeSong,audio,onMuteHo
                   opacity:songIdx===0?.2:.6,
                   display:"flex",alignItems:"center",justifyContent:"center"}}>◂</button>
               <button onClick={()=>audio.toggle(song.audioSrc)}
-                style={{background:song.accent,border:`3px solid ${BLACK}`,color:WHITE,
+                style={{"--gc":song.accent,
+                  background:song.accent,border:`3px solid ${BLACK}`,color:WHITE,
                   width:44,height:44,fontSize:15,fontWeight:900,transform:"skewX(-10deg)",
                   boxShadow:`4px 4px 0 rgba(255,255,255,.15), 0 0 22px ${song.accent}66`,
+                  animation:isPlaying?"playGlow 1.8s ease-in-out infinite":"none",
                   display:"flex",alignItems:"center",justifyContent:"center",
                   transition:"background .4s, box-shadow .4s"}}>
                 <span style={{display:"inline-block",transform:"skewX(10deg)"}}>{isPlaying?"⏸":"▶"}</span>
@@ -1750,9 +1863,11 @@ function MiniPlayer({audio,nowPlaying,bgOn,onToggleBg}){
                 whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nowPlaying.artist}</div>}
             </div>
             <button onClick={()=>audio.toggle(audio.curSrc)}
-              style={{background:accent,border:`2px solid ${WHITE}`,color:WHITE,
+              style={{"--gc":accent,
+                background:accent,border:`2px solid ${WHITE}`,color:WHITE,
                 width:30,height:30,fontSize:11,fontWeight:900,transform:"skewX(-8deg)",flexShrink:0,
                 display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+                animation:audio.playing?"playGlow 1.8s ease-in-out infinite":"none",
                 boxShadow:`2px 2px 0 rgba(0,0,0,.6)`}}>
               <span style={{display:"inline-block",transform:"skewX(8deg)"}}>{audio.playing?"⏸":"▶"}</span>
             </button>
