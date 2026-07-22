@@ -4,6 +4,8 @@
 
 An interactive music portfolio, styled like a menu-driven game UI: roster → artist → albums → tracks → story pages, with wipe transitions between screens.
 
+> 🤖 **Agent / contributor?** Start at [`CONTEXT.md`](CONTEXT.md) before reading anything else in this repo, including the rest of this README.
+
 ## 🎨 Themes
 
 | File | Look |
@@ -20,6 +22,8 @@ apecoft-music-realm/
 ├── index.html          ← main app (red/black poster theme)
 ├── index-noir.html     ← alternate app (dark editorial theme)
 ├── README.md
+├── CONTEXT.md           ← agent/contributor entry point — read this first
+├── docs/                ← agent/contributor coordination docs (see CONTEXT.md)
 ├── data/
 │   ├── artists.csv     ← edit these to change content
 │   ├── albums.csv
